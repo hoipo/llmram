@@ -1,0 +1,68 @@
+{
+  "name": "llmram",
+  "version": "0.1.0",
+  "description": "Tiny TypeScript library + CLI to estimate LLM VRAM/RAM needs and rough tokens/sec.",
+  "license": "MIT",
+  "type": "module",
+  "author": "Potter",
+  "homepage": "https://llmram.com",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "llmram": "./dist/cli.cjs"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run lint && npm run test && npm run build",
+    "model:from-hf": "tsx scripts/add-model-from-hf.ts",
+    "prepublishOnly": "npm run ci",
+    "prepare": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hoipo/llmram"
+  },
+  "bugs": {
+    "url": "https://github.com/hoipo/llmram/issues"
+  },
+  "keywords": [
+    "llm",
+    "vram",
+    "ram",
+    "inference",
+    "quantization",
+    "cli",
+    "typescript",
+    "huggingface",
+    "moe",
+    "ai-infrastructure"
+  ],
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
