@@ -1,7 +1,7 @@
 import type { TokensPerSecondInput, TokensPerSecondResult } from '../types'
 
 export function estimateTokensPerSecond(input: TokensPerSecondInput): TokensPerSecondResult {
-  const { model, quantization, hardware, efficiency = 0.72 } = input
+  const { model, quantization, hardware, efficiency = 0.68 } = input
 
   if (efficiency <= 0 || efficiency > 1)
     throw new Error('efficiency must be > 0 and <= 1')

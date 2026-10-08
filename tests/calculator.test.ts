@@ -8,6 +8,7 @@ import {
   estimateTokensPerSecond,
   recommendQuantization
 } from '../src'
+import type { HardwareSpec } from '../src'
 
 function mustModel(id: string) {
   const model = MODEL_BY_ID[id]
@@ -34,81 +35,112 @@ function mustHardware(id: string) {
 }
 
 describe('estimateMemory', () => {
-  it('computes weight memory from resident params and effective bits', () => {
-    const model = mustModel('llama-3.1-8b')
-    const quantization = mustQuant('q4_k_m')
+  it('matches live-site reference values for qwen-3-8-27b at 16k context', () => {
     const result = estimateMemory({
-      model,
-      quantization,
-      contextTokens: 8192
-    })
-
-    expect(result.weightMemoryGB).toBeCloseTo(4.51, 1)
-    expect(result.kvCacheGB).toBeCloseTo(1, 1)
-  })
-
-  it('uses TOTAL params for MoE weight residency (reference point)', () => {
-    const model = mustModel('qwen-3-8-flash-next-125b')
-    const quantization = mustQuant('q4_k_m')
-    const result = estimateMemory({
-      model,
-      quantization,
-      contextTokens: 32768
-    })
-
-    const expectedWeightGb = (125 * 1_000_000_000 * 4.83 / 8) / 1024 ** 3
-
-    expect(model.activeParamsB).toBe(6)
-    expect(model.totalParamsB).toBe(125)
-    expect(result.residentParamsB).toBe(125)
-    expect(result.weightMemoryGB).toBeCloseTo(expectedWeightGb, 4)
-  })
-
-  it('treats dense models as resident = active = total params', () => {
-    const model = mustModel('qwen-3-8-27b')
-    const result = estimateMemory({
-      model,
+      model: mustModel('qwen-3-8-27b'),
       quantization: mustQuant('q4_k_m'),
-      contextTokens: 16384
+      contextTokens: 16000
     })
 
-    expect(result.residentParamsB).toBe(27)
-    expect(result.activeParamsB).toBe(27)
-    expect(result.kvCacheGB).toBeCloseTo(4, 4)
+    expect(result.weightMemoryGB).toBeCloseTo(14.4588, 2)
+    expect(result.kvCacheGB).toBeCloseTo(3.9063, 2)
+    expect(result.runtimeOverheadGB).toBeCloseTo(1.4172, 2)
+    expect(result.totalMemoryGB).toBeCloseTo(19.7822, 2)
+  })
+
+  it('matches live-site reference values for qwen-3-8-27b at 64k context', () => {
+    const result = estimateMemory({
+      model: mustModel('qwen-3-8-27b'),
+      quantization: mustQuant('q4_k_m'),
+      contextTokens: 64000
+    })
+
+    expect(result.totalMemoryGB).toBeCloseTo(31.8525, 2)
+  })
+
+  it('matches live-site reference values for qwen-3-8-flash-next-125b at 32k context', () => {
+    const result = estimateMemory({
+      model: mustModel('qwen-3-8-flash-next-125b'),
+      quantization: mustQuant('q4_k_m'),
+      contextTokens: 32000
+    })
+
+    expect(result.residentParamsB).toBe(125)
+    expect(result.activeParamsB).toBe(6)
+    expect(result.totalMemoryGB).toBeCloseTo(71.2564, 2)
   })
 })
 
 describe('checkFitsOnDevice', () => {
-  it('returns fit details for a target hardware', () => {
-    const model = mustModel('llama-3.1-8b')
-    const quantization = mustQuant('q4_k_m')
+  it('fits qwen-3-8-27b 16k q4_k_m on rtx-4090 and keeps ~44 tok/s estimate', () => {
     const estimate = estimateMemory({
-      model,
-      quantization,
-      contextTokens: 8192
+      model: mustModel('qwen-3-8-27b'),
+      quantization: mustQuant('q4_k_m'),
+      contextTokens: 16000
     })
+    const hardware = mustHardware('rtx-4090')
     const fit = checkFitsOnDevice({
       estimate,
-      hardware: mustHardware('rtx-4090'),
+      hardware,
       reserveGB: 1
+    })
+    const tps = estimateTokensPerSecond({
+      model: mustModel('qwen-3-8-27b'),
+      quantization: mustQuant('q4_k_m'),
+      hardware
     })
 
     expect(fit.fits).toBe(true)
     expect(fit.availableMemoryGB).toBe(23)
     expect(fit.deficitGB).toBe(0)
+    expect(tps.tokensPerSecond).toBeCloseTo(44, 0)
+  })
+
+  it('applies unified memory usable ratio for apple silicon', () => {
+    const estimate = estimateMemory({
+      model: mustModel('llama-3.1-8b'),
+      quantization: mustQuant('q4_k_m'),
+      contextTokens: 16000
+    })
+    const apple64: HardwareSpec = {
+      id: 'apple-64',
+      name: 'Apple 64',
+      vendor: 'Apple',
+      kind: 'unified-memory',
+      memoryGB: 64,
+      bandwidthGBps: 300,
+      source: { url: 'https://example.com', checkedAt: '2026-10-07' }
+    }
+    const apple16: HardwareSpec = {
+      id: 'apple-16',
+      name: 'Apple 16',
+      vendor: 'Apple',
+      kind: 'unified-memory',
+      memoryGB: 16,
+      bandwidthGBps: 200,
+      source: { url: 'https://example.com', checkedAt: '2026-10-07' }
+    }
+
+    const fit64 = checkFitsOnDevice({ estimate, hardware: apple64, reserveGB: 0 })
+    const fit16 = checkFitsOnDevice({ estimate, hardware: apple16, reserveGB: 0 })
+
+    expect(fit64.usableMemoryRatio).toBe(0.75)
+    expect(fit64.usableMemoryGB).toBe(48)
+    expect(fit16.usableMemoryRatio).toBe(0.68)
+    expect(fit16.usableMemoryGB).toBeCloseTo(10.88, 2)
   })
 })
 
 describe('recommendQuantization', () => {
-  it('returns a fitting quantization for a constrained card', () => {
+  it('requires 10% headroom when recommending quantization', () => {
     const recommendation = recommendQuantization({
       model: mustModel('qwen-3-8-27b'),
       hardware: mustHardware('rtx-4090'),
-      contextTokens: 16384,
+      contextTokens: 16000,
       reserveGB: 1
     })
 
-    expect(recommendation.recommended?.id).toBe('q5_k_m')
+    expect(recommendation.recommended?.id).toBe('q4_k_m')
   })
 })
 
@@ -121,6 +153,6 @@ describe('estimateTokensPerSecond', () => {
     })
 
     expect(tokensPerSecond.activeParamsB).toBe(6)
-    expect(tokensPerSecond.tokensPerSecond).toBeGreaterThan(10)
+    expect(tokensPerSecond.tokensPerSecond).toBeGreaterThan(100)
   })
 })

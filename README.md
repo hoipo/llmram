@@ -13,26 +13,44 @@ Tiny open-source TypeScript library + CLI to estimate LLM VRAM/RAM usage and rou
 
 ## Quick start
 
-Not published to npm yet. Install from GitHub or clone the repo:
+Not published to npm yet.
+
+Use directly from GitHub (works via `prepare` build on install):
 
 ```bash
-npm i github:hoipo/llmram
-# or
-git clone https://github.com/hoipo/llmram && cd llmram && npm install && npm run build
+npx github:hoipo/llmram qwen-3-8-27b --quant q4_k_m --ctx 16000 --gpu rtx-4090
 ```
 
 ### CLI
 
-From a clone (after `npm run build`):
+From a clone (after `npm install` or `npm run build`):
 
 ```bash
-node dist/cli.cjs qwen-3-8-27b --quant q4_k_m --ctx 16384 --gpu rtx-4090
+node dist/cli.cjs qwen-3-8-27b --quant q4_k_m --ctx 16000 --gpu rtx-4090
 ```
 
-Or, once installed as a dependency:
+Or, install from GitHub then run:
 
 ```bash
-npx llmram qwen-3-8-27b --quant q4_k_m --ctx 16384 --gpu rtx-4090
+npm i github:hoipo/llmram
+npx llmram qwen-3-8-27b --quant q4_k_m --ctx 16000 --gpu rtx-4090
+```
+
+Example output (trimmed):
+
+```text
+| Metric                  | Value                            |
+|-------------------------|----------------------------------|
+| Model                   | Qwen 3.8 27B (qwen-3-8-27b)      |
+| Weights                 | 14.46 GiB                        |
+| KV cache                | 3.91 GiB                         |
+| Runtime overhead        | 1.42 GiB                         |
+| Total memory            | 19.78 GiB                        |
+| Hardware                | GeForce RTX 4090 24GB (rtx-4090) |
+| Available after reserve | 23.00 GiB                        |
+| Fits                    | yes                              |
+| Est. tokens/sec         | 44.1 tok/s (estimate)            |
+| Recommended quant       | q4_k_m                           |
 ```
 
 List built-in data:
@@ -62,7 +80,7 @@ const quantization = QUANTIZATION_BY_ID.q4_k_m
 const estimate = estimateMemory({
   model,
   quantization,
-  contextTokens: 16384,
+  contextTokens: 16000,
   batchSize: 1
 })
 
@@ -81,7 +99,7 @@ const tps = estimateTokensPerSecond({
 const recommended = recommendQuantization({
   model,
   hardware,
-  contextTokens: 16384
+  contextTokens: 16000
 })
 
 console.log({ estimate, fit, tps, recommended: recommended.recommended?.id })
@@ -97,12 +115,17 @@ console.log({ estimate, fit, tps, recommended: recommended.recommended?.id })
    - For dense models, `residentParams = TOTAL params` too
 2. **KV cache memory (bytes)**  
    `2 * layers * kvHeads * headDim * kvBytes * context * batch`
-3. **Runtime overhead (GB)**  
-   `0.5 + 0.05 * weightsGB + 0.02 * kvGB`
+3. **Runtime overhead (GiB)**  
+   `1.3 + 0.03 * kvCacheGiB`
 4. **Tokens/sec (estimate only)**  
    `bandwidthBytesPerSec * efficiency / (activeParams * effectiveBits / 8)`
    - Uses **ACTIVE params** for MoE throughput estimate
    - Labelled as rough estimate, not benchmark replacement
+5. **Apple Silicon usable memory for fit checks**
+   - Unified memory machines use **75%** of total memory as usable
+   - **16GB** unified memory machines use **68%** as usable
+6. **Recommended quantization headroom**
+   - A quantization is recommended only when it fits within **90% of usable memory** (keeps >=10% headroom)
 
 ## Supported models (bundled)
 

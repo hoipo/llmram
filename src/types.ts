@@ -69,6 +69,8 @@ export interface FitsOnDeviceInput {
 export interface FitsOnDeviceResult {
   fits: boolean
   reserveGB: number
+  usableMemoryGB: number
+  usableMemoryRatio: number
   availableMemoryGB: number
   requiredMemoryGB: number
   deficitGB: number

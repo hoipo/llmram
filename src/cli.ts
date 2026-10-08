@@ -130,10 +130,10 @@ export function runCli(): void {
     ['Quantization', `${quantization.label} (${quantization.id}, ${formatNumber({ value: quantization.effectiveBits, digits: 2 })} bits)`],
     ['Resident params', `${formatNumber({ value: estimate.residentParamsB, digits: 2 })}B`],
     ['Active params', `${formatNumber({ value: estimate.activeParamsB, digits: 2 })}B`],
-    ['Weights', `${formatNumber({ value: estimate.weightMemoryGB, digits: 2 })} GB`],
-    ['KV cache', `${formatNumber({ value: estimate.kvCacheGB, digits: 2 })} GB`],
-    ['Runtime overhead', `${formatNumber({ value: estimate.runtimeOverheadGB, digits: 2 })} GB`],
-    ['Total memory', `${formatNumber({ value: estimate.totalMemoryGB, digits: 2 })} GB`]
+    ['Weights', `${formatNumber({ value: estimate.weightMemoryGB, digits: 2 })} GiB`],
+    ['KV cache', `${formatNumber({ value: estimate.kvCacheGB, digits: 2 })} GiB`],
+    ['Runtime overhead', `${formatNumber({ value: estimate.runtimeOverheadGB, digits: 2 })} GiB`],
+    ['Total memory', `${formatNumber({ value: estimate.totalMemoryGB, digits: 2 })} GiB`]
   ]
 
   if (hardware) {
@@ -141,11 +141,6 @@ export function runCli(): void {
       estimate,
       hardware,
       reserveGB
-    })
-    const tps = estimateTokensPerSecond({
-      model,
-      quantization,
-      hardware
     })
     const recommendation = recommendQuantization({
       model,
@@ -156,9 +151,15 @@ export function runCli(): void {
     })
 
     tableRows.push(['Hardware', `${hardware.name} (${hardware.id})`])
-    tableRows.push(['Available after reserve', `${formatNumber({ value: fit.availableMemoryGB, digits: 2 })} GB`])
-    tableRows.push(['Fits', fit.fits ? 'yes' : `no (needs +${formatNumber({ value: fit.deficitGB, digits: 2 })} GB)`])
-    tableRows.push(['Est. tokens/sec', `${formatNumber({ value: tps.tokensPerSecond, digits: 1 })} tok/s (estimate)`])
+    tableRows.push(['Usable memory', `${formatNumber({ value: fit.usableMemoryGB, digits: 2 })} GiB (${formatNumber({ value: fit.usableMemoryRatio * 100, digits: 0 })}%)`])
+    tableRows.push(['Available after reserve', `${formatNumber({ value: fit.availableMemoryGB, digits: 2 })} GiB`])
+    tableRows.push(['Fits', fit.fits ? 'yes' : `no (needs +${formatNumber({ value: fit.deficitGB, digits: 2 })} GiB)`])
+    tableRows.push([
+      'Est. tokens/sec',
+      fit.fits
+        ? `${formatNumber({ value: estimateTokensPerSecond({ model, quantization, hardware }).tokensPerSecond, digits: 1 })} tok/s (estimate)`
+        : 'n/a (does not fit)'
+    ])
     tableRows.push(['Recommended quant', recommendation.recommended ? recommendation.recommended.id : 'none fits'])
   }
 
@@ -184,7 +185,7 @@ Options:
   --ctx <tokens>     Context length tokens (default: model context)
   --batch <n>        Batch size (default: 1)
   --gpu <id>         Hardware id for fit and tokens/sec estimate
-  --reserve <gb>     Reserved memory not used by model (default: 1)
+  --reserve <gib>    Reserved memory not used by model (default: 1)
   --list-models      List built-in models
   --list-hardware    List built-in hardware
   --help             Show this help
@@ -212,7 +213,7 @@ function printHardware(): void {
   const rows = HARDWARE_SPECS.map((hardware) => [
     hardware.id,
     hardware.name,
-    `${formatNumber({ value: hardware.memoryGB, digits: 0 })} GB`,
+    `${formatNumber({ value: hardware.memoryGB, digits: 0 })} GiB`,
     `${formatNumber({ value: hardware.bandwidthGBps, digits: 0 })} GB/s`,
     hardware.source.url
   ])

@@ -1,6 +1,6 @@
 import type { MemoryEstimateInput, MemoryEstimateResult } from '../types'
 
-const BYTES_IN_GB = 1024 ** 3
+const BYTES_IN_GIB = 1024 ** 3
 
 export function estimateMemory(input: MemoryEstimateInput): MemoryEstimateResult {
   const { model, quantization, contextTokens, batchSize = 1, runtimeOverheadGB } = input
@@ -15,12 +15,11 @@ export function estimateMemory(input: MemoryEstimateInput): MemoryEstimateResult
   const weightBytes = (residentParamsB * 1_000_000_000 * quantization.effectiveBits) / 8
   const kvCacheBytes = 2 * model.layers * model.kvHeads * model.headDim * quantization.kvCacheBytesPerElement * contextTokens * batchSize
   const computedRuntimeOverheadGB = runtimeOverheadGB ?? estimateRuntimeOverhead({
-    weightBytes,
     kvCacheBytes
   })
 
-  const weightMemoryGB = weightBytes / BYTES_IN_GB
-  const kvCacheGB = kvCacheBytes / BYTES_IN_GB
+  const weightMemoryGB = weightBytes / BYTES_IN_GIB
+  const kvCacheGB = kvCacheBytes / BYTES_IN_GIB
   const totalMemoryGB = weightMemoryGB + kvCacheGB + computedRuntimeOverheadGB
 
   return {
@@ -34,15 +33,10 @@ export function estimateMemory(input: MemoryEstimateInput): MemoryEstimateResult
 }
 
 interface RuntimeOverheadInput {
-  weightBytes: number
   kvCacheBytes: number
 }
 
 function estimateRuntimeOverhead(input: RuntimeOverheadInput): number {
-  const { weightBytes, kvCacheBytes } = input
-  const weightGB = weightBytes / BYTES_IN_GB
-  const kvGB = kvCacheBytes / BYTES_IN_GB
-  const baseGB = 0.5
-
-  return baseGB + weightGB * 0.05 + kvGB * 0.02
+  const kvGB = input.kvCacheBytes / BYTES_IN_GIB
+  return 1.3 + kvGB * 0.03
 }

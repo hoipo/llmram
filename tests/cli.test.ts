@@ -64,10 +64,19 @@ describe('runCli', () => {
   })
 
   it('prints table for valid command', () => {
-    const result = runWithArgs(['qwen-3-8-27b', '--quant', 'q4_k_m', '--ctx', '32768', '--gpu', 'rtx-4090'])
+    const result = runWithArgs(['qwen-3-8-27b', '--quant', 'q4_k_m', '--ctx', '16000', '--gpu', 'rtx-4090'])
 
     expect(result.exitCode).toBeUndefined()
     expect(result.stdout[0]).toContain('Total memory')
+    expect(result.stdout[0]).toContain('GiB')
+    expect(result.stdout[0]).toContain('tok/s (estimate)')
     expect(result.stdout[0]).toContain('Recommended quant')
+  })
+
+  it('shows n/a tokens/sec when estimate does not fit', () => {
+    const result = runWithArgs(['qwen-3-8-flash-next-125b', '--quant', 'q4_k_m', '--ctx', '32000', '--gpu', 'rtx-4090'])
+
+    expect(result.exitCode).toBeUndefined()
+    expect(result.stdout[0]).toContain('n/a (does not fit)')
   })
 })

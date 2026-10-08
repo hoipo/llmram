@@ -30,7 +30,6 @@ export function recommendQuantization(input: RecommendQuantizationInput): Recomm
       hardware,
       reserveGB
     })
-
     return {
       quantization,
       estimate,
@@ -38,7 +37,9 @@ export function recommendQuantization(input: RecommendQuantizationInput): Recomm
     }
   })
 
-  const recommended = attempted.find((result) => result.fits.fits)?.quantization ?? null
+  const recommended = attempted
+    .find((result) => result.fits.fits && result.estimate.totalMemoryGB <= result.fits.availableMemoryGB * 0.9)
+    ?.quantization ?? null
 
   return {
     recommended,
